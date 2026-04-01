@@ -1,0 +1,8 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "sootclasses-trunk-jar-with-dependencies.jar",
+        "soot-4.6.0-jar-with-dependencies.jar"
+    ],
+    "java.compile.nullAnalysis.mode": "disabled"
+}
