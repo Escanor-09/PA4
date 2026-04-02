@@ -4,33 +4,151 @@ import soot.jimple.AssignStmt;
 import soot.jimple.Constant;
 import soot.jimple.InstanceFieldRef;
 import soot.jimple.InvokeStmt;
+import soot.jimple.NewArrayExpr;
+import soot.jimple.NewExpr;
+import soot.jimple.NewMultiArrayExpr;
 import soot.jimple.ReturnStmt;
 import soot.jimple.StaticFieldRef;
 import soot.jimple.Stmt;
 
 import java.util.*;
 
-class AllocationSite{
-    private final Unit allocationSite;
-    private final int lineNumber;
-    private final SootClass type;
-    private final boolean isConstant;
+import heros.solver.Pair;
 
-    AllocationSite(Unit allocationSite, int lineNumber, SootClass type){
-        this.allocationSite = allocationSite;
-        this.lineNumber = lineNumber;
-        this.type = type;
-        this.isConstant = false;
+interface Field{
+
+}
+
+class RealField implements Field{
+    private final SootField field;
+
+    RealField(SootField field){
+        this.field = field;
     }
 
-    private AllocationSite(boolean isConstant){
+    @Override
+    public boolean equals(Object obj){
+        if(this == obj) return true;
+        if(!(obj instanceof RealField)) return false;
+
+        RealField other = (RealField)obj;
+        return Objects.equals(this.field, other.field);
+    }
+
+    @Override
+    public int hashCode(){
+        return Objects.hash(field);
+    }
+
+    @Override
+    public String toString(){
+        return field.getName();
+    }
+}
+
+class ArrayField implements Field{
+    private final String name;
+
+    private ArrayField(String name){
+        this.name = name;
+    }
+
+    public static final ArrayField ARRAY = new ArrayField("*");
+
+    @Override
+    public boolean equals(Object obj){
+        if(this == obj) return true;
+        if(!(obj instanceof ArrayField)) return false;
+
+        ArrayField other = (ArrayField)obj;
+        return Objects.equals(this.name, other.name);
+    }
+
+    @Override
+    public int hashCode(){
+        return Objects.hash(name);
+    }
+
+    @Override
+    public String toString(){
+        return this.name;
+    }
+}
+
+class AllocationSiteContext{
+    final List<Unit> chain;
+
+    AllocationSiteContext(List<Unit> chain){
+        this.chain = chain;
+    }
+
+    static AllocationSiteContext empty(){
+        return new AllocationSiteContext(new ArrayList<>());
+    }
+
+    AllocationSiteContext push(Unit u, int k){
+        List<Unit> newList = new ArrayList<>();
+        newList.add(u);
+
+        for(int i = 0; i < Math.min(k-1, chain.size()); i++){
+            newList.add(chain.get(i));
+        }
+        return new AllocationSiteContext(newList);
+    }
+
+    AllocationSiteContext truncate(int k){
+        return new AllocationSiteContext(new ArrayList<>(chain.subList(0, Math.min(k,chain.size()))));
+    }
+
+    @Override
+    public boolean equals(Object obj){
+        if(this == obj) return true;
+        if(!(obj instanceof AllocationSiteContext)) return false;
+
+        AllocationSiteContext other = (AllocationSiteContext) obj;
+        return Objects.equals(this.chain, other.chain);
+    }
+
+    @Override
+    public int hashCode(){
+        return Objects.hash(this.chain);
+    }
+
+    @Override
+    public String toString(){
+        List<Integer> lines = new ArrayList<>();
+        for(Unit u : this.chain){
+            lines.add(u.getJavaSourceStartLineNumber());
+        }
+        return lines.toString();
+    }
+}
+
+class AllocationSite{
+    private final Unit allocationSite;
+    private final SootClass type;
+    private final AllocationSiteContext heapContext;
+    private final boolean isConstant;
+    private final String tag;
+
+    AllocationSite(Unit allocationSite, SootClass type, AllocationSiteContext heapContext){
+        this.allocationSite = allocationSite;
+        this.type = type;
+        this.heapContext = heapContext;
+        this.isConstant = false;
+        this.tag = "OBJ";
+    }
+
+    private AllocationSite(boolean isConstant,String tag){
         this.isConstant = isConstant;
         this.allocationSite = null;
         this.type = null;
-        this.lineNumber = -1;
+        this.heapContext = null;
+        this.tag = tag;
     }
 
-    public static final AllocationSite CONST = new AllocationSite(true);
+    public static final AllocationSite CONST = new AllocationSite(true,"CONST");
+    public static final AllocationSite PRIMITIVE = new AllocationSite(true,"PRIMITIVE");
 
     public SootClass getType(){
         return this.type;
@@ -38,6 +156,10 @@ class AllocationSite{
 
     public boolean isConstant(){
         return this.isConstant;
+    }
+
+    public AllocationSiteContext getHeapContext(){
+        return this.heapContext;
     }
 
     @Override
@@ -49,29 +171,31 @@ class AllocationSite{
         AllocationSite other = (AllocationSite)obj;
 
         if(this.isConstant || other.isConstant){
-            return this.isConstant && other.isConstant;
+            return Objects.equals(this.tag, other.tag) && this.isConstant && other.isConstant;
         }
-        return Objects.equals(this.allocationSite, other.allocationSite) && Objects.equals(this.type, other.type);
+        return Objects.equals(this.allocationSite, other.allocationSite) && Objects.equals(this.type, other.type) && Objects.equals(this.heapContext, other.heapContext);
     }
 
     @Override
     public int hashCode(){
-        if(this.isConstant) return 1;
-        return Objects.hash(this.allocationSite,this.type);
+        if(this.isConstant) return Objects.hash(tag);
+        return Objects.hash(this.allocationSite,this.type, this.heapContext);
     }
 
     @Override
     public String toString(){
-        if(isConstant) return "CONST";
-        return "Obj(" + (type != null ? type.getName() : "?") + ", L" + lineNumber + ")";
+        if(this.isConstant) return this.tag;
+        int line = this.allocationSite != null ? this.allocationSite.getJavaSourceStartLineNumber() : -1;
+
+        return "Obj(" + (this.type != null ? this.type.getName() : "?") + ", L" + line + ", hc = " + this.heapContext + ")";
     }
 }
 
 class FieldRef{
     final AllocationSite base;
-    final SootField field;
+    final Field field;
 
-    FieldRef(AllocationSite base, SootField field){
+    FieldRef(AllocationSite base, Field field){
         this.base = base;
         this.field = field;
     }
@@ -91,7 +215,7 @@ class FieldRef{
     }
     @Override
     public String toString(){
-        return base + "." + field.getName();
+        return base + "." + field.toString();
     }
 }
 
@@ -100,15 +224,20 @@ class State{
     Map<Local, Set<AllocationSite>> stackMap;
     Map<FieldRef, Set<AllocationSite>> heapMap;
     Map<SootField, Set<AllocationSite>> staticMap;
+    AllocationSiteContext methodContext;
     
-    State(){
+    State(AllocationSiteContext methodContext){
         this.stackMap = new HashMap<>();
         this.heapMap = new HashMap<>();
         this.staticMap = new HashMap<>();
+        this.methodContext = methodContext;
     }
 
     //copy helper
     State(State other){
+
+        //copying method Context
+        this.methodContext = other.methodContext;
 
         //stackMap copy
         this.stackMap = new HashMap<>();
@@ -134,6 +263,10 @@ class State{
     }
 
     public boolean merge(State other){
+
+        if(!Objects.equals(this.methodContext, other.methodContext)){
+            return false;
+        }
         boolean changed = false;
 
         //merge stackMap
@@ -156,146 +289,75 @@ class State{
         return changed;
     }
 
+    //helper function to get Points-to info
+    Set<AllocationSite> getPts(Local l){
+        return this.stackMap.getOrDefault(l, Collections.emptySet());
+    }
+
+    //helper function to do strong update
+    void strongUpdate(Local l, Set<AllocationSite> pSet){
+        this.stackMap.put(l, new HashSet<>(pSet));
+    }
+
+    //helper function to do weak update
+    void weakUpdate(Local l, Set<AllocationSite> pSet){
+        this.stackMap.computeIfAbsent(l, k-> new HashSet<>()).addAll(pSet);
+    }
+
     @Override
     public boolean equals(Object obj){
         if(this == obj) return true;
         if(!(obj instanceof State)) return false;
 
         State other = (State)obj;
-        return Objects.equals(this.stackMap, other.stackMap) && Objects.equals(this.heapMap, other.heapMap) && Objects.equals(this.staticMap, other.staticMap);
+        return Objects.equals(this.stackMap, other.stackMap) && Objects.equals(this.heapMap, other.heapMap) && Objects.equals(this.staticMap, other.staticMap) && Objects.equals(this.methodContext, other.methodContext);
     }
 
     @Override
     public int hashCode(){
-        return Objects.hash(this.stackMap, this.heapMap, this.staticMap);
+        return Objects.hash(this.stackMap, this.heapMap, this.staticMap, this.methodContext);
     }
 }
 
-public class AnalysisTransformer extends BodyTransformer{
+public class AnalysisTransformer extends SceneTransformer{
+
+    static Map<Pair<SootMethod,AllocationSiteContext>, State> methodState;
+
     @Override
-    public void internalTransform(Body body,String phaseName, Map<String,String> options){
+    public void internalTransform(String phaseName, Map<String,String> options){
 
     }
 
-    public void transferFunction(State state, Unit unit){
-
+    private State transferFunction(Unit unit, State state, SootMethod sm){
         Stmt stmt = (Stmt)unit;
 
         if(stmt.containsInvokeExpr()){
 
-            //a = foo() or a = x.foo()
-            if(stmt instanceof AssignStmt){
-
-            }
-            //foo() or foo(parameters)
-            else{
-
-            }
         }
 
-        //assign stmt ==
+
         else if(stmt instanceof AssignStmt aStmt){
+
             Value lhs = aStmt.getLeftOp();
             Value rhs = aStmt.getRightOp();
 
-            //alloc statement
-            if(rhs instanceof AnyNewExpr r && lhs instanceof Local l){
-                Type t = r.getType();
-
-                if(t instanceof RefType refType){
-                    SootClass sc = refType.getSootClass();
-                    int lineNumber = stmt.getJavaSourceStartLineNumber();
-                    Unit u = (Unit)stmt;
-                    AllocationSite aSite = new AllocationSite(u, lineNumber, sc);
-                    state.stackMap.put(l,new HashSet<>(Set.of(aSite)));
-                }
-
-                else if(t instanceof ArrayType){
-
-                }
+            //alloc
+            if(rhs instanceof NewExpr r && lhs instanceof Local l){
+                RefType objType = r.getBaseType();
+                SootClass sc = objType.getSootClass();
+                AllocationSiteContext context = state.methodContext;
+                AllocationSite aSite = new AllocationSite(unit, sc, context);
+                state.strongUpdate(l, new HashSet<>(Set.of(aSite)));
             }
 
-            //copy stmt
-            else if(rhs instanceof Local r && lhs instanceof Local l){
-                Set<AllocationSite> pSet = state.stackMap.computeIfAbsent(r, k-> new HashSet<>());
-                state.stackMap.put(r, pSet);
-            }
-
-            //load a = x.f
-            else if(rhs instanceof InstanceFieldRef iRef && lhs instanceof Local l){
-                Local base = (Local)iRef.getBase();
-                SootField sf = iRef.getField();
-                Set<AllocationSite> basePSet = state.stackMap.getOrDefault(base, Collections.emptySet());
-                Set<AllocationSite> lSet = state.stackMap.computeIfAbsent(l, k-> new HashSet<>());
-                lSet.clear();
-                for(AllocationSite a: basePSet){
-                    FieldRef fRef = new FieldRef(a, sf);
-                    Set<AllocationSite> sfMap = state.heapMap.getOrDefault(fRef,Collections.emptySet());
-                    lSet.addAll(sfMap);
-                }
-            }
-
-            //store stmt x.f = a or x.f = const
-            else if(lhs instanceof InstanceFieldRef iRef){
-                Local base = (Local)iRef.getBase();
-                SootField sf = iRef.getField();
-                Set<AllocationSite> basePts = state.stackMap.getOrDefault(base, Collections.emptySet());
+            else if(rhs instanceof NewArrayExpr r && lhs instanceof Local l){
                 
-                if(rhs instanceof Local r){
-                    Set<AllocationSite> rSet = state.stackMap.getOrDefault(r, Collections.emptySet());
-                    if(basePts.size() == 1){
-                        AllocationSite only = basePts.iterator().next();
-                        FieldRef fRef = new FieldRef(only, sf);
-                        state.heapMap.put(fRef, new HashSet<>(rSet));
-                    }else{
-                        for(AllocationSite obj: basePts){
-                            FieldRef fRef = new FieldRef(obj, sf);
-                            state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).addAll(rSet);
-                        }
-                    }
-                }
-
-                else if(rhs instanceof Constant){
-                    AllocationSite aSite = AllocationSite.CONST;
-                    if(basePts.size() == 1){
-                        AllocationSite only = basePts.iterator().next();
-                        FieldRef fRef = new FieldRef(only,sf);
-                        state.heapMap.put(fRef, new HashSet<>(Set.of(aSite)));
-                    }else{
-                        for(AllocationSite obj: basePts){
-                            FieldRef fRef = new FieldRef(obj, sf);
-                            state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).add(aSite);
-                        }
-                    }
-                }
-            }
-
-            //static load a = C.x
-            else if(rhs instanceof StaticFieldRef sRef && lhs instanceof Local l){
-                SootField sf = sRef.getField();
-                Set<AllocationSite> fieldPts = state.staticMap.getOrDefault(sf, Collections.emptySet());
-                state.stackMap.put(l, new HashSet<>(fieldPts));
-            }
-
-            //static store C.x = a or C.x = const
-            else if(lhs instanceof StaticFieldRef sRef){
-                SootField sf = sRef.getField();
-
-                if(rhs instanceof Local r){
-                    Set<AllocationSite> rSet = state.stackMap.getOrDefault(r, Collections.emptySet());
-                    state.staticMap.put(sf,new HashSet<>(rSet));
-                }
-                else if(rhs instanceof Constant){
-                    AllocationSite aSite = AllocationSite.CONST;
-                    state.staticMap.put(sf, new HashSet<>(Set.of(aSite)));
-                }
             }
         }
 
-        //return stmt
         else if(stmt instanceof ReturnStmt){
 
         }
+        return state;
     }
-    
 }
