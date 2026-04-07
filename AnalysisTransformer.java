@@ -116,9 +116,9 @@ class KeyField implements Field{
 }
 
 class AllocationSiteContext{
-    final List<AllocationSite> chain;
+    final List<Unit> chain;
 
-    AllocationSiteContext(List<AllocationSite> chain){
+    AllocationSiteContext(List<Unit> chain){
         this.chain = chain;
     }
 
@@ -126,9 +126,9 @@ class AllocationSiteContext{
         return new AllocationSiteContext(new ArrayList<>());
     }
 
-    AllocationSiteContext push(AllocationSite a, int k){
-        List<AllocationSite> newList = new ArrayList<>();
-        newList.add(a);
+    AllocationSiteContext push(Unit u, int k){
+        List<Unit> newList = new ArrayList<>();
+        newList.add(u);
 
         for(int i = 0; i < Math.min(k-1, chain.size()); i++){
             newList.add(chain.get(i));
@@ -157,8 +157,8 @@ class AllocationSiteContext{
     @Override
     public String toString(){
         List<Integer> lines = new ArrayList<>();
-        for(AllocationSite a : this.chain){
-            lines.add(a.hashCode());
+        for(Unit u : this.chain){
+            lines.add(u.hashCode());
         }
         return lines.toString();
     }
@@ -208,6 +208,10 @@ class AllocationSite{
 
     public AllocationSiteContext getHeapContext(){
         return this.heapContext;
+    }
+
+    public Unit getAllocationSite(){
+        return this.allocationSite;
     }
 
     @Override
@@ -539,7 +543,8 @@ public class AnalysisTransformer extends SceneTransformer{
                 for(AllocationSite recv : baseSet){
 
                     AllocationSiteContext recvHeapContext = recv.getHeapContext() != null ? recv.getHeapContext() : AllocationSiteContext.empty();
-                    AllocationSiteContext newContext = recvHeapContext.push(recv, K);
+                    AllocationSiteContext newContext = recvHeapContext.push(recv.getAllocationSite(), K);
+                    //AllocationSiteContext newContext = recv.getHeapContext();
 
                     for(SootMethod tgt: targets){
                         if(!tgt.hasActiveBody()) continue;
@@ -573,7 +578,9 @@ public class AnalysisTransformer extends SceneTransformer{
                 for(AllocationSite recv: baseSet){
 
                     AllocationSiteContext recvHeapContext = recv.getHeapContext() != null ? recv.getHeapContext() : AllocationSiteContext.empty();
-                    AllocationSiteContext newContext = recvHeapContext.push(recv, K);
+                    AllocationSiteContext newContext = recvHeapContext.push(recv.getAllocationSite(), K);
+
+                    //AllocationSiteContext newContext = recv.getHeapContext();
 
                     for(SootMethod tgt: targets){
 
@@ -614,14 +621,15 @@ public class AnalysisTransformer extends SceneTransformer{
             if(rhs instanceof NewExpr r && lhs instanceof Local l){
                 RefType objType = r.getBaseType();
                 SootClass sc = objType.getSootClass();
-                AllocationSiteContext heapContext;
+                // AllocationSiteContext heapContext;
 
-                if(state.methodContext.chain.isEmpty()){
-                    heapContext = AllocationSiteContext.empty();
-                }else{
-                    heapContext = new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
-                }
-
+                // if(state.methodContext.chain.isEmpty()){
+                //     heapContext = AllocationSiteContext.empty();
+                // }else{
+                //     heapContext = new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
+                // }
+                //AllocationSiteContext heapContext = new AllocationSiteContext(List.of(unit));
+                AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
                 AllocationSite aSite = new AllocationSite(unit, sc, heapContext);
                 state.strongUpdate(l, Set.of(aSite));
             }
@@ -634,6 +642,8 @@ public class AnalysisTransformer extends SceneTransformer{
                 if(baseType instanceof RefType rt){
                     sc = rt.getSootClass();
                 }
+
+                //AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
 
                 AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
 
@@ -660,8 +670,8 @@ public class AnalysisTransformer extends SceneTransformer{
 
                 SootClass sc = (baseType instanceof RefType rt) ? rt.getSootClass() : null;
                 
+                //AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
                 AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
-                
                 //outer array
                 AllocationSite outer = new AllocationSite(unit, sc, heapContext, "OUTER");
 
