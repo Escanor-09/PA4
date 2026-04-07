@@ -450,17 +450,6 @@ public class AnalysisTransformer extends SceneTransformer{
 
             Map<Unit, State> outStates = runWorkList(method, inState);
 
-            if(method.getSignature().contains("main") && globalWorkList.isEmpty()){
-                State finalState = new State(context);
-
-                for(State s: outStates.values()){
-                    if(s != null){
-                        finalState.merge(s);
-                    }
-                }
-                printFinalMainState(finalState, method, context);
-            }
-
             State exitState = new State(context);
             for(Unit u: method.getActiveBody().getUnits()){
                 if(u instanceof ReturnStmt || u instanceof soot.jimple.ReturnVoidStmt || u instanceof soot.jimple.ThrowStmt){
@@ -473,6 +462,18 @@ public class AnalysisTransformer extends SceneTransformer{
             }
             propagateToCallers(method, context, exitState);
         }
+        // Print final points-to state for main after full analysis
+        Pair<SootMethod, AllocationSiteContext> mainKey = new Pair<>(main, emptyContext);
+        State mainFinalInState = methodState.get(mainKey);
+        if(mainFinalInState != null){
+            Map<Unit, State> finalOutStates = runWorkList(main, mainFinalInState.copy());
+            State finalState = new State(emptyContext);
+            for(State s : finalOutStates.values()){
+                if(s != null) finalState.merge(s);
+            }
+            printFinalMainState(finalState, main, emptyContext);
+        }
+
         System.out.println("\n=================Monomorphic Calls=================");
 
         for(String info : monoCalls.values()){
@@ -1069,10 +1070,12 @@ public class AnalysisTransformer extends SceneTransformer{
                     String key = stmt.toString() + "@" + state.methodContext;
 
                     if(!monoCalls.containsKey(key)){
-                        String info = "Call Site : " + stmt + "\n" + 
-                        "Context : " + state.methodContext + "\n" + 
-                        "Receiver : " + baseSet + "\n" +
-                        "Target : " + targets.iterator().next().getSignature();
+                        int lineNum = stmt.getJavaSourceStartLineNumber();
+                        String info = "Call Site : " + stmt + "\n" +
+                        "Line      : " + (lineNum > 0 ? lineNum : "N/A") + "\n" +
+                        "Context   : " + state.methodContext + "\n" +
+                        "Receiver  : " + baseSet + "\n" +
+                        "Target    : " + targets.iterator().next().getSignature();
                         monoCalls.put(key, info);
                     }
                 }
@@ -1325,8 +1328,21 @@ public class AnalysisTransformer extends SceneTransformer{
         }
 
         System.out.println("\n--- Final Heap ---");
-        for(var e : state.heapMap.entrySet()){
-            System.out.println("  " + e.getKey() + " -> " + e.getValue());
+        if(state.heapMap.isEmpty()){
+            System.out.println("  (empty)");
+        }else{
+            for(var e : state.heapMap.entrySet()){
+                System.out.println("  " + e.getKey() + " -> " + e.getValue());
+            }
+        }
+
+        System.out.println("\n--- Final Static Fields ---");
+        if(state.staticMap.isEmpty()){
+            System.out.println("  (empty)");
+        }else{
+            for(var e : state.staticMap.entrySet()){
+                System.out.println("  " + e.getKey().getName() + " -> " + e.getValue());
+            }
         }
 
         System.out.println("=================================================\n");
