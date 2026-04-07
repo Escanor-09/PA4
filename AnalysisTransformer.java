@@ -468,8 +468,11 @@ public class AnalysisTransformer extends SceneTransformer{
         if(mainFinalInState != null){
             Map<Unit, State> finalOutStates = runWorkList(main, mainFinalInState.copy());
             State finalState = new State(emptyContext);
-            for(State s : finalOutStates.values()){
-                if(s != null) finalState.merge(s);
+            for(Unit u : main.getActiveBody().getUnits()){
+                if(u instanceof ReturnStmt || u instanceof soot.jimple.ReturnVoidStmt || u instanceof soot.jimple.ThrowStmt){
+                    State s = finalOutStates.get(u);
+                    if(s != null) finalState.merge(s);
+                }
             }
             printFinalMainState(finalState, main, emptyContext);
         }
