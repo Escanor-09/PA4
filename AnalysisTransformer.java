@@ -422,6 +422,8 @@ public class AnalysisTransformer extends SceneTransformer{
     // static int totalCalls = 0;
     // static int monocalls = 0;
     static Map<String, String> monoCalls = new HashMap<>();
+    // key = stmt.toString() (no context) → used by Transformation to patch bytecode
+    static Map<String, SootMethod> monoTargets = new HashMap<>();
 
     @Override
     public void internalTransform(String phaseName, Map<String,String> options){
@@ -1081,6 +1083,7 @@ public class AnalysisTransformer extends SceneTransformer{
                 // System.out.println(" MONOMORPHIC -> " + targets.iterator().next().getSubSignature());
                 if(targets.size() == 1){
                     String key = stmt.toString() + "@" + state.methodContext;
+                    SootMethod singleTarget = targets.iterator().next();
 
                     if(!monoCalls.containsKey(key)){
                         int lineNum = stmt.getJavaSourceStartLineNumber();
@@ -1088,9 +1091,11 @@ public class AnalysisTransformer extends SceneTransformer{
                         "Line      : " + (lineNum > 0 ? lineNum : "N/A") + "\n" +
                         "Context   : " + state.methodContext + "\n" +
                         "Receiver  : " + baseSet + "\n" +
-                        "Target    : " + targets.iterator().next().getSignature();
+                        "Target    : " + singleTarget.getSignature();
                         monoCalls.put(key, info);
                     }
+                    // store actual SootMethod for Transformation to use (keyed by stmt only, no context)
+                    monoTargets.putIfAbsent(stmt.toString(), singleTarget);
                 }
                 result.addAll(targets);
                 return result;
