@@ -158,7 +158,7 @@ class AllocationSiteContext{
     public String toString(){
         List<Integer> lines = new ArrayList<>();
         for(Unit u : this.chain){
-            lines.add(u.hashCode());
+            lines.add(u.getJavaSourceStartLineNumber());
         }
         return lines.toString();
     }
@@ -501,7 +501,7 @@ public class AnalysisTransformer extends SceneTransformer{
             //types of InvokeExpr
             InvokeExpr ie = stmt.getInvokeExpr();
 
-            //handle modeled library methods (ArrayList, HashMap summaries)
+            //handle modeled library methods (ArrayList, HashMap, Linked List summaries)
             if(ie.getMethod().getDeclaringClass().isJavaLibraryClass()){
                 return applyLibrarySummary(stmt, ie, state);
             }
@@ -1184,6 +1184,7 @@ public class AnalysisTransformer extends SceneTransformer{
         String className = sm.getDeclaringClass().getName();
         String methodName = sm.getName();
 
+        //Array List
         if(className.equals("java.util.ArrayList")){
             if(ie instanceof InstanceInvokeExpr iie){
                 Local base = (Local)iie.getBase();
@@ -1222,6 +1223,7 @@ public class AnalysisTransformer extends SceneTransformer{
             return state;
         }
 
+        //Hash Map
         else if(className.equals("java.util.HashMap")){
             if(ie instanceof InstanceInvokeExpr iie){
                 Local base = (Local)iie.getBase();
@@ -1284,6 +1286,7 @@ public class AnalysisTransformer extends SceneTransformer{
             return state;
         }
 
+        //Linked List
         else if(className.equals("java.util.LinkedList")){
             if(ie instanceof InstanceInvokeExpr iie){
                 Local base = (Local)iie.getBase();
@@ -1321,6 +1324,333 @@ public class AnalysisTransformer extends SceneTransformer{
                     AllocationSite recv = baseSet.iterator().next();
                     FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
                     state.heapMap.put(fRef, new HashSet<>());
+                }
+            }
+        }
+        
+        //Hash Set/TreeSet/LinkedHashSet
+        else if(className.equals("java.util.HashSet") || className.equals("java.util.TreeSet") || className.equals("java.util.LinkedHashSet")){
+            if(ie instanceof InstanceInvokeExpr iie){
+                Local base = (Local)iie.getBase();
+                Set<AllocationSite> baseSet = state.getPts(base);
+
+                //add callse in HashSet
+                if(methodName.equals("add") && ie.getArgCount() == 1){
+                    Value arg = ie.getArg(0);
+                    if(arg instanceof Local argLocal){
+                        Set<AllocationSite> argSet = state.getPts(argLocal);
+                        for(AllocationSite a: baseSet){
+                            FieldRef fRef = new FieldRef(a, ArrayField.ARRAY);
+                            state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).addAll(argSet);
+                        }
+                    }
+                }
+
+                //clear call
+                else if(methodName.equals("clear")){
+                    if(baseSet.size() == 1){
+                        AllocationSite recv = baseSet.iterator().next();
+                        FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                        state.heapMap.put(fRef, new HashSet<>());
+                    }
+                }
+
+                //iterator
+                else if(methodName.equals("iterator") || methodName.equals("toArray")){
+                    if(stmt instanceof AssignStmt aStmt && aStmt.getLeftOp() instanceof Local l){
+                        Set<AllocationSite> result = new HashSet<>();
+                        for(AllocationSite a: baseSet){
+                            FieldRef fRef = new FieldRef(a, ArrayField.ARRAY);
+                            result.addAll(state.heapMap.getOrDefault(fRef, Collections.emptySet()));
+                        }
+                        state.strongUpdate(l, result);
+                    }
+                }
+            }
+        }
+        
+        //ArrayDequeue
+        else if(className.equals("java.util.ArrayDeque")){
+            if(ie instanceof InstanceInvokeExpr iie){
+                Local base = (Local)iie.getBase();
+                Set<AllocationSite> baseSet = state.getPts(base);
+                
+                Set<String> writeMthods = Set.of("push", "addFirst", "addLase", "offer", "offerFirst", "offerLast");
+                Set<String> readMethods = Set.of("pop", "poll", "peek", "pollFirst", "removeFirst","pollLast","peekFirst","peekLast","remove","removeLast","getFirst","getLast","element");
+
+                if(writeMthods.contains(methodName) && ie.getArgCount() == 1){
+                    Value arg = ie.getArg(0);
+                    if(arg instanceof Local argLocal){
+                        Set<AllocationSite> argSet = state.getPts(argLocal);
+                        for(AllocationSite recv : baseSet){
+                            FieldRef  fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            state.heapMap.computeIfAbsent(fRef, k->new HashSet<>()).addAll(argSet);
+                        }
+                    }
+                }
+
+                else if(readMethods.contains(methodName)){
+                    if(stmt instanceof AssignStmt aStmt && aStmt.getLeftOp() instanceof Local l){
+                        Set<AllocationSite> result = new HashSet<>();
+                        for(AllocationSite recv : baseSet){
+                            FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            result.addAll(state.heapMap.getOrDefault(fRef, Collections.emptySet()));
+                        }
+                        state.strongUpdate(l, result);
+                    }
+                }
+
+                else if(methodName.equals("clear")){
+                    if(baseSet.size() == 1){
+                        AllocationSite recv = baseSet.iterator().next();
+                        FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                        state.heapMap.put(fRef, new HashSet<>());
+                    }
+                }
+            }
+        }
+
+        //Stack
+        else if(className.equals("java.util.Stack")){
+            if(ie instanceof InstanceInvokeExpr iie){
+                Local base = (Local)iie.getBase();
+                Set<AllocationSite> baseSet = state.getPts(base);
+
+                if(methodName.equals("push") && ie.getArgCount() == 1){
+                    Value arg = ie.getArg(0);
+                    if(arg instanceof Local argLocal){
+                        Set<AllocationSite> argSet = state.getPts(argLocal);
+                        for(AllocationSite recv : baseSet){
+                            FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).addAll(argSet);
+                        }
+                    }
+                }
+
+                else if(methodName.equals("pop") || methodName.equals("peek")){
+                    if(stmt instanceof AssignStmt aStmt && aStmt.getLeftOp() instanceof Local l){
+                        Set<AllocationSite> result = new HashSet<>();
+                        for(AllocationSite recv: baseSet){
+                            FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            result.addAll(state.heapMap.getOrDefault(fRef, Collections.emptySet()));
+                        }
+                        state.strongUpdate(l, result);
+                    }
+                }
+
+                else if(methodName.equals("clear")){
+                    if(baseSet.size() == 1){
+                        AllocationSite recv = baseSet.iterator().next();
+                        FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                        state.heapMap.put(fRef, new HashSet<>());
+                    }
+                }
+            }
+        }
+        
+        //TreeMap
+        else if(className.equals("java.util.TreeMap")){
+            if(ie instanceof InstanceInvokeExpr iie){
+                Local base = (Local)iie.getBase();
+                Set<AllocationSite> baseSet = state.getPts(base);
+
+                if(methodName.equals("put") && ie.getArgCount() == 2){
+                    Value keyArg = ie.getArg(0);
+                    Value valArg = ie.getArg(1);
+
+                    if(valArg instanceof Local valLocal){
+                        Set<AllocationSite> valSet = state.getPts(valLocal);
+                        Set<AllocationSite> keySet = keyArg instanceof Local kl ? state.getPts(kl) : Set.of(AllocationSite.CONST);
+
+                        for(AllocationSite recv : baseSet){
+                            for(AllocationSite key : keySet){
+                                FieldRef fRef = new FieldRef(recv, new KeyField(key));
+                                state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).addAll(valSet);
+                            }
+                        }
+                    }
+                }
+
+                else if(methodName.equals("get")){
+                    if(stmt instanceof AssignStmt aStmt && aStmt.getLeftOp() instanceof Local l){
+                        Value keyArg = ie.getArg(0);
+
+                        Set<AllocationSite> keySet = keyArg instanceof Local kl ? state.getPts(kl) : Set.of(AllocationSite.CONST);
+                        Set<AllocationSite> result = new HashSet<>();
+
+                        for(AllocationSite recv : baseSet){
+                            for(AllocationSite key: keySet){
+                                FieldRef fRef = new FieldRef(recv, new KeyField(key));
+                                result.addAll(state.heapMap.getOrDefault(fRef, Collections.emptySet()));
+                            }
+                            state.strongUpdate(l, result);
+                        }
+                    }
+                }
+
+                else if(methodName.equals("remove") && ie.getArgCount() == 1){
+                    Value keyArg = ie.getArg(0);
+                    Set<AllocationSite> keySet = keyArg instanceof Local kl ? state.getPts(kl) : Set.of(AllocationSite.CONST);
+
+                    for(AllocationSite recv: baseSet){
+                        if(baseSet.size() == 1){
+                            for(AllocationSite key : keySet){
+                                FieldRef fRef = new FieldRef(recv, new KeyField(key));
+                                state.heapMap.remove(fRef);
+                            }
+                        }
+                    }
+                }
+
+                else if(methodName.equals("clear")){
+                    if(baseSet.size() == 1){
+                        AllocationSite recv = baseSet.iterator().next();
+                        state.heapMap.keySet().removeIf(fRef -> fRef.base.equals(recv) && fRef.field instanceof KeyField);
+                    }
+                }
+            }
+        }
+        
+        //LinkedHashMap
+        else if(className.equals("java.util.LinkedHashMap")){
+            if(ie instanceof InstanceInvokeExpr iie){
+                Local base = (Local)iie.getBase();
+                Set<AllocationSite> baseSet = state.getPts(base);
+
+                if(methodName.equals("put") && ie.getArgCount() == 2){
+                    Value keyArg = ie.getArg(0);
+                    Value valArg = ie.getArg(1);
+
+                    if(valArg instanceof Local valLocal){
+                        Set<AllocationSite> valSet = state.getPts(valLocal);
+                        Set<AllocationSite> keySet = keyArg instanceof Local kl ? state.getPts(kl) : Set.of(AllocationSite.CONST);
+                        
+                        for(AllocationSite recv: baseSet){
+                            for(AllocationSite key : keySet){
+                                FieldRef fRef = new FieldRef(recv, new KeyField(key));
+                                state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).addAll(valSet);
+                            }
+                        }
+                    }
+                }
+                
+                else if(methodName.equals("get")){
+                    if(stmt instanceof AssignStmt aStmt && aStmt.getLeftOp() instanceof Local l){
+                        Value keyArg = ie.getArg(0);
+                        Set<AllocationSite> keySet = keyArg instanceof Local kl ? state.getPts(kl) : Set.of(AllocationSite.CONST);
+                        Set<AllocationSite> result = new HashSet<>();
+
+                        for(AllocationSite recv: baseSet){
+                            for(AllocationSite key : keySet){
+                                FieldRef fRef = new FieldRef(recv, new KeyField(key));
+                                result.addAll(state.heapMap.getOrDefault(fRef, Collections.emptySet()));
+                            }
+                            state.strongUpdate(l, result);
+                        }
+                    }
+                }
+
+                else if(methodName.equals("remove") && ie.getArgCount() == 1){
+                    Value keyArg = ie.getArg(0);
+                    Set<AllocationSite> keySet = keyArg instanceof Local kl ? state.getPts(kl) : Set.of(AllocationSite.CONST);
+
+                    for(AllocationSite recv: baseSet){
+                        if(baseSet.size() == 1){
+                            for(AllocationSite key: keySet){
+                                FieldRef fRef = new FieldRef(recv, new KeyField(key));
+                                state.heapMap.remove(fRef);
+                            }
+                        }
+                    }
+                }
+                
+                else if(methodName.equals("clear")){
+                    if(baseSet.size() == 1){
+                        AllocationSite recv = baseSet.iterator().next();
+                        state.heapMap.keySet().removeIf(fRef -> fRef.base.equals(recv) && fRef.field instanceof KeyField);
+                    }
+                }
+            }
+        }
+        
+        //Vector
+        else if(className.equals("java.util.Vector")){
+            if(ie instanceof InstanceInvokeExpr iie){
+                Local base = (Local)iie.getBase();
+                Set<AllocationSite> baseSet = state.getPts(base);
+
+                Set<String> writeMethods = Set.of("add", "addElement", "Set");
+                Set<String> readMethods = Set.of("get", "elementAt", "firstElement", "lastElement");
+
+                if(writeMethods.contains(methodName) && ie.getArgCount() >= 1){
+                    Value lastArg = ie.getArg(ie.getArgCount()-1);
+                    if(lastArg instanceof Local argLocal){
+                        Set<AllocationSite> argSet = state.getPts(argLocal);
+                        for(AllocationSite recv : baseSet){
+                            FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).addAll(argSet);
+                        }
+                    }
+                }
+
+                else if(readMethods.contains(methodName)){
+                    if(stmt instanceof AssignStmt aStmt && aStmt.getLeftOp() instanceof Local l){
+                        Set<AllocationSite> result = new HashSet<>();
+                        for(AllocationSite recv : baseSet){
+                            FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            result.addAll(state.heapMap.getOrDefault(fRef, Collections.emptySet()));
+                        }
+                        state.strongUpdate(l, result);
+                    }
+                }
+
+                else if(methodName.equals("clear") || methodName.equals("removeAllElements")){
+                    if(baseSet.size() == 1){
+                        AllocationSite recv = baseSet.iterator().next();
+                        FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                        state.heapMap.put(fRef, new HashSet<>());
+                    }
+                }
+            }
+        }
+        
+        //Priority Queue
+        else if(className.equals("java.util.PriorityQueue")){
+            if(ie instanceof InstanceInvokeExpr iie){
+                Local base = (Local)iie.getBase();
+                Set<AllocationSite> baseSet = state.getPts(base);
+
+                Set<String> writeMethods = Set.of("add", "offer");
+                Set<String> readMethods = Set.of("poll", "peek", "remove", "element");
+
+                if(writeMethods.contains(methodName) && ie.getArgCount() == 1){
+                    Value arg = ie.getArg(0);
+                    if(arg instanceof Local argLocal){
+                        Set<AllocationSite> argSet = state.getPts(argLocal);
+                        for(AllocationSite recv : baseSet){
+                            FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            state.heapMap.computeIfAbsent(fRef, k-> new HashSet<>()).addAll(argSet);
+                        }
+                    }
+                }
+
+                else if(readMethods.contains(methodName)){
+                    if(stmt instanceof AssignStmt aStmt && aStmt.getLeftOp() instanceof Local l){
+                        Set<AllocationSite> result = new HashSet<>();
+                        for(AllocationSite recv : baseSet){
+                            FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                            result.addAll(state.heapMap.getOrDefault(fRef, Collections.emptySet()));
+                        }
+                        state.strongUpdate(l, result);
+                    }
+                }
+
+                else if(methodName.equals("clear")){
+                    if(baseSet.size() == 1){
+                        AllocationSite recv = baseSet.iterator().next();
+                        FieldRef fRef = new FieldRef(recv, ArrayField.ARRAY);
+                        state.heapMap.put(fRef, new HashSet<>());
+                    }
                 }
             }
         }
