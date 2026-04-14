@@ -19,38 +19,68 @@ public class Transformation extends BodyTransformer {
         Map<String, SootMethod> monoTargets = AnalysisTransformer.monoTargets;
 
         // Nothing to optimize if analysis found no monomorphic calls
-        if(monoTargets.isEmpty()) return;
+        if (monoTargets.isEmpty()) return;
 
         PatchingChain<Unit> units = body.getUnits();
 
         // Collect units to patch (avoid ConcurrentModificationException)
         List<Unit> toProcess = new ArrayList<>(units);
 
-        for(Unit unit : toProcess){
+        int devirtualizedCount = 0;
+
+        for (Unit unit : toProcess) {
             Stmt stmt = (Stmt) unit;
 
-            if(!stmt.containsInvokeExpr()) continue;
+            if (!stmt.containsInvokeExpr()) continue;
 
             InvokeExpr ie = stmt.getInvokeExpr();
 
             // Only devirtualize virtual and interface dispatches
-            if(!(ie instanceof VirtualInvokeExpr) && !(ie instanceof InterfaceInvokeExpr)) continue;
+            if (!(ie instanceof VirtualInvokeExpr) && !(ie instanceof InterfaceInvokeExpr)) continue;
 
             // Look up this call site in the monomorphic targets map
+            // Key is stmt.toString() — same string the analysis used when it recorded the site
             SootMethod target = monoTargets.get(stmt.toString());
-            if(target == null) continue;
+            if (target == null) continue;
 
-            // TODO: Build SpecialInvokeExpr with the concrete target
-            // SpecialInvokeExpr newExpr = Jimple.v().newSpecialInvokeExpr(...);
+            // The original invoke expr is always an InstanceInvokeExpr (base + method + args)
+            // Both VirtualInvokeExpr and InterfaceInvokeExpr extend InstanceInvokeExpr
+            InstanceInvokeExpr iie = (InstanceInvokeExpr) ie;
+            Local base = (Local) iie.getBase();
 
-            // TODO: Replace the invoke expr in the stmt
-            // stmt.getInvokeExprBox().setValue(newExpr);
+            // Build a SpecialInvokeExpr that calls the concrete target directly:
+            //   virtualinvoke base.<Interface: void foo()>()
+            //     becomes
+            //   specialinvoke base.<ConcreteClass: void foo()>()
+            //
+            // specialinvoke is the Jimple opcode for direct (non-dispatched) instance calls.
+            // It is normally used for constructors and private methods, and here for
+            // devirtualized calls where we have proven there is exactly one possible target.
+            SpecialInvokeExpr newExpr = Jimple.v().newSpecialInvokeExpr(
+                base,           // same receiver local
+                target.makeRef(), // concrete method reference (includes declaring class)
+                iie.getArgs()   // same arguments
+            );
 
-            // TODO: Print what was devirtualized (for debugging/output)
-            // System.out.println("[Devirtualized] " + stmt + " → " + target.getSignature());
+            // Patch the statement in-place.
+            // getInvokeExprBox() returns the ValueBox that holds the InvokeExpr inside
+            // this statement (whether it's an InvokeStmt or the RHS of an AssignStmt).
+            // setValue() replaces the old virtual/interface expr with the special one.
+            stmt.getInvokeExprBox().setValue(newExpr);
+
+            devirtualizedCount++;
+            System.out.println("[Devirtualized] " + body.getMethod().getSignature());
+            System.out.println("  Before : " + ie.getClass().getSimpleName()
+                    + " → " + ie.getMethod().getSignature());
+            System.out.println("  After  : SpecialInvokeExpr → " + target.getSignature());
         }
 
-        // TODO: Validate the body after patching
-        // body.validate();
+        if (devirtualizedCount > 0) {
+            System.out.println("[Transformation] " + body.getMethod().getSignature()
+                    + " — devirtualized " + devirtualizedCount + " call(s)");
+            // Validate the body after all patches are applied.
+            // This checks that all types, locals, and jumps are still consistent.
+            body.validate();
+        }
     }
 }
