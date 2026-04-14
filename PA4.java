@@ -6,7 +6,8 @@ public class PA4{
 
         G.reset();
 
-        String classPath = "./testcases";
+        // Accept optional path argument: java PA4 ./testcases/Test1
+        String classPath = (args.length > 0) ? args[0] : "./testcases";
 
         Options.v().set_keep_line_number(true);
 

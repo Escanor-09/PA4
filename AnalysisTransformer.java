@@ -127,6 +127,8 @@ class AllocationSiteContext{
     }
 
     AllocationSiteContext push(Unit u, int k){
+        // Guard: CONST/PRIMITIVE allocation sites have a null Unit — skip them
+        if(u == null) return this.truncate(k);
         List<Unit> newList = new ArrayList<>();
         newList.add(u);
 
@@ -544,6 +546,9 @@ public class AnalysisTransformer extends SceneTransformer{
 
                 for(AllocationSite recv : baseSet){
 
+                    // CONST/PRIMITIVE have no real type — cannot dispatch on them
+                    if(recv.isConstant()) continue;
+
                     AllocationSiteContext recvHeapContext = recv.getHeapContext() != null ? recv.getHeapContext() : AllocationSiteContext.empty();
                     AllocationSiteContext newContext = recvHeapContext.push(recv.getAllocationSite(), K);
                     //AllocationSiteContext newContext = recv.getHeapContext();
@@ -559,7 +564,7 @@ public class AnalysisTransformer extends SceneTransformer{
                         calleeEntry.methodContext = newContext;
 
                         State old = methodState.get(key);
-                        
+
                         if(old == null){
                             methodState.put(key,calleeEntry);
                             globalWorkList.add(key);
@@ -631,7 +636,8 @@ public class AnalysisTransformer extends SceneTransformer{
                 //     heapContext = new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
                 // }
                 //AllocationSiteContext heapContext = new AllocationSiteContext(List.of(unit));
-                AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
+                Unit _first = state.methodContext.chain.isEmpty() ? null : state.methodContext.chain.get(0);
+                AllocationSiteContext heapContext = (_first == null) ? AllocationSiteContext.empty() : new AllocationSiteContext(new ArrayList<>(List.of(_first)));
                 AllocationSite aSite = new AllocationSite(unit, sc, heapContext);
                 state.strongUpdate(l, Set.of(aSite));
             }
@@ -647,7 +653,8 @@ public class AnalysisTransformer extends SceneTransformer{
 
                 //AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
 
-                AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
+                Unit _first = state.methodContext.chain.isEmpty() ? null : state.methodContext.chain.get(0);
+                AllocationSiteContext heapContext = (_first == null) ? AllocationSiteContext.empty() : new AllocationSiteContext(new ArrayList<>(List.of(_first)));
 
                 AllocationSite aSite = new AllocationSite(unit, sc, heapContext);
 
@@ -673,7 +680,8 @@ public class AnalysisTransformer extends SceneTransformer{
                 SootClass sc = (baseType instanceof RefType rt) ? rt.getSootClass() : null;
                 
                 //AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
-                AllocationSiteContext heapContext = state.methodContext.chain.isEmpty() ? AllocationSiteContext.empty() : new AllocationSiteContext(List.of(state.methodContext.chain.get(0)));
+                Unit _first = state.methodContext.chain.isEmpty() ? null : state.methodContext.chain.get(0);
+                AllocationSiteContext heapContext = (_first == null) ? AllocationSiteContext.empty() : new AllocationSiteContext(new ArrayList<>(List.of(_first)));
                 //outer array
                 AllocationSite outer = new AllocationSite(unit, sc, heapContext, "OUTER");
 
