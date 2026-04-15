@@ -1,6 +1,6 @@
 import soot.*;
-import soot.JastAddJ.PrimitiveType;
-import soot.jimple.AnyNewExpr;
+//import soot.JastAddJ.PrimitiveType;
+//import soot.jimple.AnyNewExpr;
 import soot.jimple.ArrayRef;
 import soot.jimple.AssignStmt;
 import soot.jimple.Constant;
@@ -8,22 +8,25 @@ import soot.jimple.IdentityStmt;
 import soot.jimple.InstanceFieldRef;
 import soot.jimple.InstanceInvokeExpr;
 import soot.jimple.InvokeExpr;
-import soot.jimple.InvokeStmt;
+//import soot.jimple.InvokeStmt;
 import soot.jimple.NewArrayExpr;
 import soot.jimple.NewExpr;
 import soot.jimple.NewMultiArrayExpr;
-import soot.jimple.ParameterRef;
+//import soot.jimple.ParameterRef;
 import soot.jimple.ReturnStmt;
 import soot.jimple.SpecialInvokeExpr;
 import soot.jimple.StaticFieldRef;
 import soot.jimple.StaticInvokeExpr;
 import soot.jimple.Stmt;
-import soot.jimple.ThisRef;
+//import soot.jimple.ThisRef;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 import soot.toolkits.graph.ExceptionalUnitGraph;
 import soot.toolkits.graph.UnitGraph;
-
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.*;
 
 import heros.solver.Pair;
@@ -427,6 +430,9 @@ public class AnalysisTransformer extends SceneTransformer{
     // key = stmt.toString() (no context) → used by Transformation to patch bytecode
     static Map<String, SootMethod> monoTargets = new HashMap<>();
 
+    //path for the reflection log
+    static String refLogPath = null;
+
     @Override
     public void internalTransform(String phaseName, Map<String,String> options){
         methodState = new HashMap<>();
@@ -447,6 +453,9 @@ public class AnalysisTransformer extends SceneTransformer{
 
         methodState.put(entry, init);
         globalWorkList.add(entry);
+
+        //give the worklist with reflection discovered entry poitns
+        seedFromReflectionLog(emptyContext);
 
         while(!globalWorkList.isEmpty()){
             Pair<SootMethod, AllocationSiteContext> curr = globalWorkList.poll();
@@ -485,14 +494,92 @@ public class AnalysisTransformer extends SceneTransformer{
             printFinalMainState(finalState, main, emptyContext);
         }
 
-        System.out.println("\n=================Monomorphic Calls=================");
+        // System.out.println("\n=================Monomorphic Calls=================");
+        // for(String info : monoCalls.values()){
+        //     System.out.println("\n[Mono Call]");
+        //     System.out.println(info);
+        // }
+        // System.out.println("Total Mono Calls: " + monoCalls.size());
+        // System.out.println("================================");
+    }
 
-        for(String info : monoCalls.values()){
-            System.out.println("\n[Mono Call]");
-            System.out.println(info);
+    private void seedFromReflectionLog(AllocationSiteContext emptyContext) {
+        if(refLogPath == null) return;
+
+        File logFile = new File(refLogPath);
+        if(!logFile.exists()){
+            System.out.println("log not found: " + refLogPath);
+            return;
         }
-        System.out.println("Total Mono Calls: " + monoCalls.size());
-        System.out.println("================================");
+
+        int seeded = 0;
+        try(BufferedReader br = new BufferedReader(new FileReader(logFile))){
+            String line;
+            while((line = br.readLine()) != null){
+                line = line.trim();
+                if(line.isEmpty()) continue;
+
+                String[] parts = line.split(";",-1);
+                if(parts.length < 2) continue;
+
+                String kind = parts[0];
+                String sigOrName = parts[1];
+
+                //Skip JDK Internals -> No body present
+                if(sigOrName.startsWith("java") || sigOrName.startsWith("javax") || sigOrName.startsWith("java") || sigOrName.startsWith("jdk") || sigOrName.startsWith("com.sun")) continue;
+
+                //skip JVM runtime accessor classes
+                if(sigOrName.contains("GeneratedConstructorAccessor") || sigOrName.contains("GeneratedMethodAccessor")) continue;
+
+                SootMethod method = null;
+
+                try{
+                    
+                    if(kind.equals("Constructor.newInstance") || kind.equals("Method.invoke")){
+                        method = resolveFromSootSig(sigOrName);
+                    }
+
+                    else if(kind.equals("Class.newInstance")){
+                        if(!Scene.v().containsClass(sigOrName)) continue;
+                        SootClass sc = Scene.v().getSootClass(sigOrName);
+                        method = sc.getMethodUnsafe("void <init>()");
+                    }
+                }catch(Exception e){
+                    continue;
+                }
+
+                if(method == null) continue;
+
+                if(method.isPhantom() || method.isAbstract() || !method.hasActiveBody()) continue;
+
+                Pair<SootMethod, AllocationSiteContext> reflEntry = new Pair<>(method, emptyContext);
+                if(!methodState.containsKey(reflEntry)){
+                    methodState.put(reflEntry, new State(emptyContext));
+                    globalWorkList.add(reflEntry);
+                    seeded++;
+                }
+            }
+        }catch(IOException e){
+            System.out.println(" error reading file log : " + e.getMessage());
+        }
+        System.out.println("REFL Seeded " + seeded + " reflection entry points from " + refLogPath);
+    }
+
+    private SootMethod resolveFromSootSig(String sigOrName) {
+        sigOrName = sigOrName.trim();
+
+        if(sigOrName.startsWith("<")) sigOrName = sigOrName.substring(1);
+        if(sigOrName.endsWith(">")) sigOrName = sigOrName.substring(0, sigOrName.length() - 1);
+
+        int colonIdx = sigOrName.indexOf(":");
+        if(colonIdx < 0) return null;
+
+        String className = sigOrName.substring(0,colonIdx).trim();
+        String subSig = sigOrName.substring(colonIdx+1).trim();
+
+        if(!Scene.v().containsClass(className)) return null;
+        SootClass sc = Scene.v().getSootClass(className);
+        return sc.getMethodUnsafe(subSig);
     }
 
     private State transferFunction(Unit unit, State state, SootMethod sm){
