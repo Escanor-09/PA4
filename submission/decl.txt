@@ -1,0 +1,19 @@
+AI Usage Declaration — CS6004 PA4
+Team ID: PA4019
+
+How AI was used:
+- Learning and understanding Soot APIs (SceneTransformer, BodyTransformer,
+  PatchingChain, JimpleBody, InvokeExpr hierarchy, PackManager)
+- Debugging specific errors (VerifyError on invokespecial, ClassCastException
+  when cloning bodies during parallel jtp execution, VerifyError on type
+  mismatch when passing uncast base to static wrapper)
+- Asking questions about JVM bytecode semantics (invokevirtual vs invokespecial
+  vs invokestatic verifier rules)
+- Drafting and iterating on the LaTeX report structure
+- Creating some testcases
+
+What was NOT AI-generated:
+- The core analysis algorithm (field-sensitive, flow-sensitive, 2-object-sensitive
+  pointer analysis) — designed and implemented by the student
+- The testcase designs and scenarios
+- The interpretation of results and discussion
