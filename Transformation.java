@@ -4,76 +4,74 @@ import java.util.*;
 
 public class Transformation extends BodyTransformer {
 
+    private static int castCounter = 0;
+
     @Override
     public void internalTransform(Body body, String phaseName, Map<String, String> options) {
 
         // WORKFLOW:
-        // 1. Get the monomorphic call sites identified by AnalysisTransformer
-        // 2. Iterate over all statements in this method body
-        // 3. For each statement that is a virtual/interface invoke:
-        //    a. Look up stmt.toString() in monoTargets
-        //    b. If found → replace VirtualInvokeExpr / InterfaceInvokeExpr
-        //                   with SpecialInvokeExpr to the single concrete target
-        // 4. Validate the patched body
+        // AnalysisTransformer (wjtp) already identified monomorphic call sites AND
+        // pre-built static wrapper methods for each concrete target while all bodies
+        // were still in JimpleBody form.
+        //
+        // Here (jtp) we simply:
+        //  1. Find each virtual/interface invoke that has a pre-built wrapper.
+        //  2. Cast the base to the concrete type (JVM verifier requires the concrete
+        //     type on the stack for the static call's first parameter).
+        //  3. Replace the dispatch with staticinvoke(castBase, originalArgs...).
+        //
+        // staticinvoke = invokestatic in JVM bytecode: zero dispatch overhead,
+        // no vtable lookup, no itable search. The cast is the only extra cost,
+        // same as the checkcast+virtualinvoke approach, but invokestatic replaces
+        // invokevirtual so we save the vtable index lookup too.
 
         Map<String, SootMethod> monoTargets = AnalysisTransformer.monoTargets;
+        Map<SootMethod, SootMethod> wrapperCache = AnalysisTransformer.wrapperCache;
 
-        // Nothing to optimize if analysis found no monomorphic calls
         if (monoTargets.isEmpty()) return;
 
         PatchingChain<Unit> units = body.getUnits();
-
-        // Collect units to patch (avoid ConcurrentModificationException)
         List<Unit> toProcess = new ArrayList<>(units);
-
         int devirtualizedCount = 0;
 
         for (Unit unit : toProcess) {
             Stmt stmt = (Stmt) unit;
-
             if (!stmt.containsInvokeExpr()) continue;
 
             InvokeExpr ie = stmt.getInvokeExpr();
-
-            // Only devirtualize virtual and interface dispatches
             if (!(ie instanceof VirtualInvokeExpr) && !(ie instanceof InterfaceInvokeExpr)) continue;
 
-            // Look up this call site in the monomorphic targets map
-            // Key is stmt.toString() — same string the analysis used when it recorded the site
             SootMethod target = monoTargets.get(stmt.toString());
             if (target == null) continue;
 
-            // The original invoke expr is always an InstanceInvokeExpr (base + method + args)
-            // Both VirtualInvokeExpr and InterfaceInvokeExpr extend InstanceInvokeExpr
+            SootMethod wrapper = wrapperCache.get(target);
+            if (wrapper == null) continue; // wrapper not built (e.g. abstract body)
+
             InstanceInvokeExpr iie = (InstanceInvokeExpr) ie;
             Local base = (Local) iie.getBase();
 
-            // Build a SpecialInvokeExpr that calls the concrete target directly:
-            //   virtualinvoke base.<Interface: void foo()>()
-            //     becomes
-            //   specialinvoke base.<ConcreteClass: void foo()>()
-            //
-            // specialinvoke is the Jimple opcode for direct (non-dispatched) instance calls.
-            // It is normally used for constructors and private methods, and here for
-            // devirtualized calls where we have proven there is exactly one possible target.
-            SpecialInvokeExpr newExpr = Jimple.v().newSpecialInvokeExpr(
-                base,           // same receiver local
-                target.makeRef(), // concrete method reference (includes declaring class)
-                iie.getArgs()   // same arguments
-            );
+            // Cast base to the concrete type so the verifier accepts it as the
+            // first argument of the static wrapper.
+            RefType concreteType = target.getDeclaringClass().getType();
+            Local castLocal = Jimple.v().newLocal("$mono_recv_" + (castCounter++), concreteType);
+            body.getLocals().add(castLocal);
+            AssignStmt castStmt = Jimple.v().newAssignStmt(
+                castLocal, Jimple.v().newCastExpr(base, concreteType));
+            units.insertBefore(castStmt, stmt);
 
-            // Patch the statement in-place.
-            // getInvokeExprBox() returns the ValueBox that holds the InvokeExpr inside
-            // this statement (whether it's an InvokeStmt or the RHS of an AssignStmt).
-            // setValue() replaces the old virtual/interface expr with the special one.
+            // Replace virtual/interface dispatch with staticinvoke
+            List<Value> newArgs = new ArrayList<>();
+            newArgs.add(castLocal);
+            newArgs.addAll(iie.getArgs());
+
             String before = stmt.toString();
-            stmt.getInvokeExprBox().setValue(newExpr);
-            String after = stmt.toString();
+            stmt.getInvokeExprBox().setValue(
+                Jimple.v().newStaticInvokeExpr(wrapper.makeRef(), newArgs));
 
             devirtualizedCount++;
             System.out.println("[TRANSFORMATION] " + body.getMethod().getSignature());
             System.out.println("  Before : " + before);
-            System.out.println("  After  : " + after);
+            System.out.println("  After  : checkcast(" + concreteType + ") + " + stmt);
         }
 
         if (devirtualizedCount > 0) {

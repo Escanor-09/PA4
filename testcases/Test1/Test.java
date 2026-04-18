@@ -14,7 +14,7 @@ class Circle extends Shape {
     double area() { return Math.PI * r * r; }
 }
 
-public class Test1 {
+public class Test {
     public static void main(String[] args) {
         long start = System.currentTimeMillis();
         double sum = 0;

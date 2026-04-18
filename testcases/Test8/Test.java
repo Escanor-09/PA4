@@ -1,8 +1,8 @@
-// Test8: Virtual call on an object read from a static field.
-// Logger.instance is assigned exactly one concrete type (FileLogger).
-// Your analysis tracks staticMap; if it correctly resolves Logger.instance -> FileLogger,
-// the log() dispatch is monomorphic.
-// Expected output: "logged" printed, Time shown.
+// Test8: Virtual call via a static field assigned in main().
+// Assigning instance = new FileLogger() inside main() ensures our analysis
+// (which starts from main) records staticMap[Test.instance] = {FileLogger}.
+// The subsequent interface call instance.log() is then monomorphic.
+// Expected output: logged 100000, Time shown.
 
 interface Logger {
     void log(String msg);
@@ -15,13 +15,14 @@ class FileLogger implements Logger {
     public int getCount() { return count; }
 }
 
-public class Test8 {
-    static Logger instance = new FileLogger(); // static field, single concrete type
+public class Test {
+    static Logger instance; // assigned in main so analysis sees the concrete write
 
     public static void main(String[] args) {
+        instance = new FileLogger(); // staticMap[Test.instance] = {FileLogger}
         long start = System.currentTimeMillis();
         for (int i = 0; i < 100000; i++) {
-            instance.log("event"); // virtual call via static field — should be devirtualized
+            instance.log("event"); // pts(instance) = {FileLogger} -> monomorphic
         }
         long end = System.currentTimeMillis();
         System.out.println("logged: " + ((FileLogger) instance).getCount()); // 100000

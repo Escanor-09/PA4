@@ -494,13 +494,114 @@ public class AnalysisTransformer extends SceneTransformer{
         //     printFinalMainState(finalState, main, emptyContext);
         // }
 
-        // System.out.println("\n=================Monomorphic Calls=================");
-        // for(String info : monoCalls.values()){
-        //     System.out.println("\n[Mono Call]");
-        //     System.out.println(info);
-        // }
-        // System.out.println("Total Mono Calls: " + monoCalls.size());
-        // System.out.println("================================");
+        // Build static wrapper methods for every monomorphic target NOW, while all
+        // bodies are still JimpleBody.  The jtp pack (Transformation) runs later and
+        // may execute in parallel threads; by then some bodies may have been converted
+        // to BafBody for class-file output, making cloning impossible.
+        buildWrappers();
+    }
+
+    // Map populated here (wjtp phase); read by Transformation (jtp phase).
+    static Map<SootMethod, SootMethod> wrapperCache = new HashMap<>();
+
+    private void buildWrappers() {
+        // De-duplicate: multiple call sites may share the same concrete target.
+        Set<SootMethod> targets = new HashSet<>(monoTargets.values());
+        for (SootMethod target : targets) {
+            if (!target.hasActiveBody()) continue;
+            if (!(target.getActiveBody() instanceof soot.jimple.JimpleBody)) continue;
+            if (wrapperCache.containsKey(target)) continue;
+            SootMethod wrapper = createWrapper(target);
+            if (wrapper != null) wrapperCache.put(target, wrapper);
+        }
+    }
+
+    // Clone the concrete method into a new public static method inside its own class.
+    // Signature: static <RetType> $mono$<name>(ConcreteClass $recv, <original params>)
+    // The body is a verbatim clone with @this → @parameter0 and @paramN → @parameter(N+1).
+    private SootMethod createWrapper(SootMethod target) {
+        SootClass dc       = target.getDeclaringClass();
+        RefType recvType   = dc.getType();
+
+        List<Type> paramTypes = new ArrayList<>();
+        paramTypes.add(recvType);
+        paramTypes.addAll(target.getParameterTypes());
+
+        String baseName = "$mono$" + target.getName();
+        int suffix = 0;
+        String wrapperName = baseName;
+        while (dc.declaresMethod(wrapperName, paramTypes)) {
+            wrapperName = baseName + "$" + (suffix++);
+        }
+
+        SootMethod wrapper = new SootMethod(
+            wrapperName, paramTypes, target.getReturnType(),
+            soot.Modifier.PUBLIC | soot.Modifier.STATIC
+        );
+        dc.addMethod(wrapper);
+
+        soot.jimple.JimpleBody origBody = (soot.jimple.JimpleBody) target.getActiveBody();
+        soot.jimple.JimpleBody newBody  = soot.jimple.Jimple.v().newBody(wrapper);
+        wrapper.setActiveBody(newBody);
+
+        // Clone locals
+        Map<Local, Local> localMap = new HashMap<>();
+        for (Local l : origBody.getLocals()) {
+            Local nl = soot.jimple.Jimple.v().newLocal(l.getName(), l.getType());
+            newBody.getLocals().add(nl);
+            localMap.put(l, nl);
+        }
+
+        // Clone units; build old→new map for jump-target fixup
+        Map<Unit, Unit> unitMap = new HashMap<>();
+        for (Unit u : origBody.getUnits()) {
+            Unit cloned = (Unit) u.clone();
+            newBody.getUnits().add(cloned);
+            unitMap.put(u, cloned);
+        }
+
+        // Fix each cloned unit: remap locals, fix identity stmts, fix jump targets
+        for (Unit orig : origBody.getUnits()) {
+            Unit cloned = unitMap.get(orig);
+
+            for (ValueBox vb : cloned.getUseAndDefBoxes()) {
+                if (vb.getValue() instanceof Local l && localMap.containsKey(l))
+                    vb.setValue(localMap.get(l));
+            }
+
+            if (cloned instanceof soot.jimple.IdentityStmt is) {
+                Value rhs = is.getRightOp();
+                if (rhs instanceof soot.jimple.ThisRef) {
+                    is.getRightOpBox().setValue(
+                        soot.jimple.Jimple.v().newParameterRef(recvType, 0));
+                } else if (rhs instanceof soot.jimple.ParameterRef pr) {
+                    is.getRightOpBox().setValue(
+                        soot.jimple.Jimple.v().newParameterRef(pr.getType(), pr.getIndex() + 1));
+                }
+                ValueBox lhsBox = is.getLeftOpBox();
+                if (lhsBox.getValue() instanceof Local l && localMap.containsKey(l))
+                    lhsBox.setValue(localMap.get(l));
+            }
+
+            for (UnitBox ub : cloned.getUnitBoxes()) {
+                Unit mapped = unitMap.get(ub.getUnit());
+                if (mapped != null) ub.setUnit(mapped);
+            }
+        }
+
+        // Clone traps
+        for (Trap trap : origBody.getTraps()) {
+            Unit begin   = unitMap.get(trap.getBeginUnit());
+            Unit end     = unitMap.get(trap.getEndUnit());
+            Unit handler = unitMap.get(trap.getHandlerUnit());
+            if (begin != null && end != null && handler != null)
+                newBody.getTraps().add(
+                    soot.jimple.Jimple.v().newTrap(trap.getException(), begin, end, handler));
+        }
+
+        newBody.validate();
+        System.out.println("[WRAPPER CREATED] " + wrapper.getSignature());
+        return wrapper;
     }
 
     private void seedFromReflectionLog(AllocationSiteContext emptyContext) {

@@ -18,7 +18,7 @@ class Node {
     Node(Tickable t) { this.payload = t; }
 }
 
-public class Test7 {
+public class Test {
     public static void main(String[] args) {
         long start = System.currentTimeMillis();
         int total = 0;

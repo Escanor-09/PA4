@@ -17,7 +17,7 @@ class Cat extends Animal {
     String speak() { return "Meow"; }
 }
 
-public class Test3 {
+public class Test {
     public static void main(String[] args) {
         long start = System.currentTimeMillis();
         int woof = 0, meow = 0;

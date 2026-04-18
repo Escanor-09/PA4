@@ -17,7 +17,7 @@ class FastEngine implements Engine {
     public int getSpeed() { return speed; }
 }
 
-public class Test5 {
+public class Test {
     public static void main(String[] args) {
         long start = System.currentTimeMillis();
         long total = 0;

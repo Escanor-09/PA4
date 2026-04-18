@@ -12,7 +12,7 @@ class UpperCaseFormatter implements Formatter {
     public String format(String s) { return s.toUpperCase(); }
 }
 
-public class Test4 {
+public class Test {
     static String process(Formatter f, String input) {
         return f.format(input); // virtual call — always UpperCaseFormatter
     }

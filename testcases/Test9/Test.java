@@ -19,7 +19,7 @@ class PrintHandler implements Handler {
     }
 }
 
-public class Test9 {
+public class Test {
     public static void main(String[] args) {
         long start = System.currentTimeMillis();
         int total = 0;

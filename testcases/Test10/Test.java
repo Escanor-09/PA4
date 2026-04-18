@@ -1,46 +1,38 @@
-// Test10: Virtual call on an object retrieved from a HashMap via a known key.
-// The map stores Compressor objects keyed by string constants.
-// Your analysis models HashMap with KeyField; if key points-to is tracked precisely,
-// the retrieved value's type is known -> monomorphic dispatch on compress().
-// Expected output: compressed lengths printed, Time shown.
+// Test10: Virtual call through a two-level field chain (field of field).
+// Pipeline.stage.process() — Pipeline.stage always holds a ConcreteStage.
+// Tests that the analysis correctly tracks heap depth: it must follow
+//   Pipeline.stage  (InstanceFieldRef)  -> ConcreteStage allocation site
+// and then resolve the virtual call process() on that site as monomorphic.
+// Expected output: 100000, Time shown.
 
-import java.util.HashMap;
-
-interface Compressor {
-    int compress(int data);
+interface Stage {
+    int process(int x);
 }
 
-class RLECompressor implements Compressor {
+class ConcreteStage implements Stage {
     @Override
-    public int compress(int data) { return data / 2; } // dummy RLE
+    public int process(int x) { return x + 1; }
 }
 
-class HuffCompressor implements Compressor {
-    @Override
-    public int compress(int data) { return data / 3; } // dummy Huffman
+class Pipeline {
+    Stage stage;
+    Pipeline(Stage s) { this.stage = s; }
+
+    int run(int x) {
+        return stage.process(x); // virtual call through instance field
+    }
 }
 
-public class Test10 {
+public class Test {
     public static void main(String[] args) {
         long start = System.currentTimeMillis();
-        HashMap<String, Compressor> registry = new HashMap<>();
-
-        String rleKey = "rle";
-        String huffKey = "huff";
-
-        registry.put(rleKey, new RLECompressor());   // key -> RLECompressor
-        registry.put(huffKey, new HuffCompressor()); // key -> HuffCompressor
-
-        long rleTotal = 0, huffTotal = 0;
+        int total = 0;
         for (int i = 0; i < 100000; i++) {
-            Compressor c1 = (Compressor) registry.get(rleKey);  // known key -> RLECompressor
-            Compressor c2 = (Compressor) registry.get(huffKey); // known key -> HuffCompressor
-            rleTotal  += c1.compress(900); // virtual call — should be monomorphic (RLE)
-            huffTotal += c2.compress(900); // virtual call — should be monomorphic (Huff)
+            Pipeline p = new Pipeline(new ConcreteStage());
+            total += p.run(0); // stage.process() inside run() -> always ConcreteStage
         }
         long end = System.currentTimeMillis();
-        System.out.println("RLE total: "  + rleTotal);  // 45000000
-        System.out.println("Huff total: " + huffTotal); // 30000000
+        System.out.println("Total: " + total); // 100000
         System.out.println("Time(ms): " + (end - start));
     }
 }
