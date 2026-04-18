@@ -1,0 +1,67 @@
+Soot started on Wed Apr 08 12:24:23 IST 2026
+
+================ FINAL MAIN STATE ================
+METHOD  : <Test: void main(java.lang.String[])>
+CONTEXT : []
+=================================================
+
+--- Final Stack (Points-To) ---
+  r2 -> [Obj(A, L2, hc = [15])]
+  r3 -> [Obj(A, L2, hc = [16])]
+
+--- Final Heap ---
+  Obj(A, L2, hc = [16]).f -> [Obj(B, L20, hc = [])]
+  Obj(A, L2, hc = [15]).f -> [Obj(B, L19, hc = [])]
+
+--- Final Static Fields ---
+  (empty)
+=================================================
+
+
+=================Monomorphic Calls=================
+
+[Mono Call]
+Call Site : r2 = virtualinvoke $r0.<Factory: A create()>()
+Line      : 17
+Context   : []
+Receiver  : [Obj(Factory, L15, hc = [])]
+Target    : <Factory: A create()>
+
+[Mono Call]
+Call Site : virtualinvoke r3.<A: B get()>()
+Line      : 24
+Context   : []
+Receiver  : [Obj(A, L2, hc = [16])]
+Target    : <A: B get()>
+
+[Mono Call]
+Call Site : r3 = virtualinvoke $r1.<Factory: A create()>()
+Line      : 18
+Context   : []
+Receiver  : [Obj(Factory, L16, hc = [])]
+Target    : <Factory: A create()>
+
+[Mono Call]
+Call Site : virtualinvoke r2.<A: void set(B)>($r4)
+Line      : 21
+Context   : []
+Receiver  : [Obj(A, L2, hc = [15])]
+Target    : <A: void set(B)>
+
+[Mono Call]
+Call Site : virtualinvoke r2.<A: B get()>()
+Line      : 23
+Context   : []
+Receiver  : [Obj(A, L2, hc = [15])]
+Target    : <A: B get()>
+
+[Mono Call]
+Call Site : virtualinvoke r3.<A: void set(B)>($r5)
+Line      : 22
+Context   : []
+Receiver  : [Obj(A, L2, hc = [16])]
+Target    : <A: void set(B)>
+Total Mono Calls: 6
+================================
+Soot finished on Wed Apr 08 12:24:25 IST 2026
+Soot has run for 0 min. 1 sec.

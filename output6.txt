@@ -1,0 +1,81 @@
+Soot started on Tue Apr 07 16:02:27 IST 2026
+
+================ FINAL MAIN STATE ================
+METHOD  : <Test: void main(java.lang.String[])>
+CONTEXT : []
+=================================================
+
+--- Final Stack (Points-To) ---
+
+--- Final Heap ---
+  Obj(Builder, L43, hc = []).b -> [Obj(Box, L22, hc = [103394942])]
+  Obj(Builder, L37, hc = []).b -> [Obj(Box, L22, hc = [624637962])]
+  Obj(Box, L22, hc = [624637962]).item -> [Obj(DataA, L39, hc = [])]
+  Obj(Box, L22, hc = [103394942]).item -> [Obj(DataB, L45, hc = [])]
+
+--- Final Static Fields ---
+  (empty)
+=================================================
+
+
+=================Monomorphic Calls=================
+
+[Mono Call]
+Call Site : virtualinvoke $r0.<Builder: void build(Data)>($r1)
+Line      : 39
+Context   : []
+Receiver  : [Obj(Builder, L37, hc = [])]
+Target    : <Builder: void build(Data)>
+
+[Mono Call]
+Call Site : virtualinvoke $r2.<Box: void put(Data)>(r1)
+Line      : 26
+Context   : [103394942]
+Receiver  : [Obj(Box, L22, hc = [103394942])]
+Target    : <Box: void put(Data)>
+
+[Mono Call]
+Call Site : virtualinvoke $r0.<Builder: Data retrieve()>()
+Line      : 40
+Context   : []
+Receiver  : [Obj(Builder, L37, hc = [])]
+Target    : <Builder: Data retrieve()>
+
+[Mono Call]
+Call Site : virtualinvoke $r2.<Builder: Data retrieve()>()
+Line      : 46
+Context   : []
+Receiver  : [Obj(Builder, L43, hc = [])]
+Target    : <Builder: Data retrieve()>
+
+[Mono Call]
+Call Site : virtualinvoke $r2.<Builder: void build(Data)>($r3)
+Line      : 45
+Context   : []
+Receiver  : [Obj(Builder, L43, hc = [])]
+Target    : <Builder: void build(Data)>
+
+[Mono Call]
+Call Site : $r2 = virtualinvoke $r1.<Box: Data get()>()
+Line      : 30
+Context   : [103394942]
+Receiver  : [Obj(Box, L22, hc = [103394942])]
+Target    : <Box: Data get()>
+
+[Mono Call]
+Call Site : $r2 = virtualinvoke $r1.<Box: Data get()>()
+Line      : 30
+Context   : [624637962]
+Receiver  : [Obj(Box, L22, hc = [624637962])]
+Target    : <Box: Data get()>
+
+[Mono Call]
+Call Site : virtualinvoke $r2.<Box: void put(Data)>(r1)
+Line      : 26
+Context   : [624637962]
+Receiver  : [Obj(Box, L22, hc = [624637962])]
+Target    : <Box: void put(Data)>
+Total Mono Calls: 8
+================================
+Soot finished on Tue Apr 07 16:02:28 IST 2026
+Soot has run for 0 min. 1 sec.

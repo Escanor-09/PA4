@@ -1,29 +1,35 @@
-class Factory {
-    A create() { return new A(); }
+// Test3: NEGATIVE TEST — Polymorphic dispatch, no monomorphization expected.
+// The variable `animal` may point to Dog or Cat depending on loop iteration.
+// Analysis should correctly identify this as a multi-target call site.
+// Expected output: alternating "Woof" and "Meow", 100000 times total.
+
+abstract class Animal {
+    abstract String speak();
 }
 
-class A {
-    B f;
-    void set(B x) { this.f = x; }
-    B get() { return this.f; }
+class Dog extends Animal {
+    @Override
+    String speak() { return "Woof"; }
 }
 
-class B {}
+class Cat extends Animal {
+    @Override
+    String speak() { return "Meow"; }
+}
 
-public class Test {
+public class Test3 {
     public static void main(String[] args) {
-        Factory f1 = new Factory();
-
-        A a1 = f1.create();
-        A a2 = f1.create();  // SAME receiver
-
-        B b1 = new B();
-        B b2 = new B();
-
-        a1.set(b1);
-        a2.set(b2);
-
-        B r1 = a1.get();
-        B r2 = a2.get();
+        long start = System.currentTimeMillis();
+        int woof = 0, meow = 0;
+        for (int i = 0; i < 100000; i++) {
+            Animal animal = (i % 2 == 0) ? new Dog() : new Cat(); // two possible types
+            String s = animal.speak(); // polymorphic — must NOT be devirtualized
+            if (s.equals("Woof")) woof++;
+            else meow++;
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("Woof: " + woof); // 50000
+        System.out.println("Meow: " + meow); // 50000
+        System.out.println("Time(ms): " + (end - start));
     }
 }

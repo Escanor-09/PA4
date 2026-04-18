@@ -1,26 +1,43 @@
-class Factory {
-    A create() { return new A(); }
+// Test2: Context-sensitivity stress — two call sites each with a different concrete type.
+// Shape s1 always -> Square, Shape s2 always -> Triangle.
+// Both call sites are independently monomorphic and should be devirtualized.
+// Expected output: 25.0 and 6.0
+
+abstract class Shape2 {
+    abstract double area();
 }
 
-class A {
-    B f;
-    void set(B x) { this.f = x; }
-    B get() { return this.f; }
+class Square extends Shape2 {
+    double side;
+    Square(double s) { this.side = s; }
+    @Override
+    double area() { return side * side; }
 }
 
-class B {}
+class Triangle extends Shape2 {
+    double base, height;
+    Triangle(double b, double h) { this.base = b; this.height = h; }
+    @Override
+    double area() { return 0.5 * base * height; }
+}
 
-public class Test {
+public class Test2 {
+    static double compute(Shape2 s) {
+        return s.area(); // virtual call — target depends on call site
+    }
+
     public static void main(String[] args) {
-        Factory f1 = new Factory();
-        Factory f2 = new Factory();
-        A a1 = f1.create();
-        A a2 = f2.create();
-        B b1 = new B();
-        B b2 = new B();
-        a1.set(b1);
-        a2.set(b2);
-        B r1 = a1.get();  // expect {b1} only
-        B r2 = a2.get();  // expect {b2} only
+        long start = System.currentTimeMillis();
+        double sum1 = 0, sum2 = 0;
+        for (int i = 0; i < 100000; i++) {
+            Shape2 s1 = new Square(5.0);
+            Shape2 s2 = new Triangle(4.0, 3.0);
+            sum1 += compute(s1); // always Square.area()
+            sum2 += compute(s2); // always Triangle.area()
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("Square avg: " + (sum1 / 100000));   // 25.0
+        System.out.println("Triangle avg: " + (sum2 / 100000)); // 6.0
+        System.out.println("Time(ms): " + (end - start));
     }
 }

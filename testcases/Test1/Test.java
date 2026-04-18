@@ -1,22 +1,29 @@
-class Factory {
-    A create() { return new A(); }
+// Test1: Monomorphization of a simple single-implementation virtual call.
+// The analysis should detect that `shape` always points to Circle,
+// making shape.area() a monomorphic call site.
+// Expected output: 78.53981633974483 (printed 100000 times, or average shown)
+
+abstract class Shape {
+    abstract double area();
 }
 
-class Wrapper {
-    Factory f;
-    Wrapper(Factory f) { this.f = f; }
-
-    A make() { return f.create(); }
+class Circle extends Shape {
+    double r;
+    Circle(double r) { this.r = r; }
+    @Override
+    double area() { return Math.PI * r * r; }
 }
 
-class A {}
-
-public class Test {
+public class Test1 {
     public static void main(String[] args) {
-        Wrapper w1 = new Wrapper(new Factory());
-        Wrapper w2 = new Wrapper(new Factory());
-
-        A a1 = w1.make();
-        A a2 = w2.make();
+        long start = System.currentTimeMillis();
+        double sum = 0;
+        for (int i = 0; i < 100000; i++) {
+            Shape shape = new Circle(5.0); // only ever Circle
+            sum += shape.area();           // virtual call -> should be devirtualized
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("Result: " + (sum / 100000));
+        System.out.println("Time(ms): " + (end - start));
     }
 }

@@ -474,25 +474,25 @@ public class AnalysisTransformer extends SceneTransformer{
                     if(s != null) exitState.merge(s);
                 }
             }
-            if(DEBUG){
-                printAnalysisState("EXIT STATE", method, context, exitState);
-            }
+            // if(DEBUG){
+            //     printAnalysisState("EXIT STATE", method, context, exitState);
+            // }
             propagateToCallers(method, context, exitState);
         }
-        // Print final points-to state for main after full analysis
-        Pair<SootMethod, AllocationSiteContext> mainKey = new Pair<>(main, emptyContext);
-        State mainFinalInState = methodState.get(mainKey);
-        if(mainFinalInState != null){
-            Map<Unit, State> finalOutStates = runWorkList(main, mainFinalInState.copy());
-            State finalState = new State(emptyContext);
-            for(Unit u : main.getActiveBody().getUnits()){
-                if(u instanceof ReturnStmt || u instanceof soot.jimple.ReturnVoidStmt || u instanceof soot.jimple.ThrowStmt){
-                    State s = finalOutStates.get(u);
-                    if(s != null) finalState.merge(s);
-                }
-            }
-            printFinalMainState(finalState, main, emptyContext);
-        }
+        // // Print final points-to state for main after full analysis
+        // Pair<SootMethod, AllocationSiteContext> mainKey = new Pair<>(main, emptyContext);
+        // State mainFinalInState = methodState.get(mainKey);
+        // if(mainFinalInState != null){
+        //     Map<Unit, State> finalOutStates = runWorkList(main, mainFinalInState.copy());
+        //     State finalState = new State(emptyContext);
+        //     for(Unit u : main.getActiveBody().getUnits()){
+        //         if(u instanceof ReturnStmt || u instanceof soot.jimple.ReturnVoidStmt || u instanceof soot.jimple.ThrowStmt){
+        //             State s = finalOutStates.get(u);
+        //             if(s != null) finalState.merge(s);
+        //         }
+        //     }
+        //     printFinalMainState(finalState, main, emptyContext);
+        // }
 
         // System.out.println("\n=================Monomorphic Calls=================");
         // for(String info : monoCalls.values()){
@@ -508,7 +508,7 @@ public class AnalysisTransformer extends SceneTransformer{
 
         File logFile = new File(refLogPath);
         if(!logFile.exists()){
-            System.out.println("log not found: " + refLogPath);
+            // System.out.println("log not found: " + refLogPath);
             return;
         }
 
@@ -560,9 +560,9 @@ public class AnalysisTransformer extends SceneTransformer{
                 }
             }
         }catch(IOException e){
-            System.out.println(" error reading file log : " + e.getMessage());
+            // System.out.println(" error reading file log : " + e.getMessage());
         }
-        System.out.println("REFL Seeded " + seeded + " reflection entry points from " + refLogPath);
+        // System.out.println("REFL Seeded " + seeded + " reflection entry points from " + refLogPath);
     }
 
     private SootMethod resolveFromSootSig(String sigOrName) {
@@ -1234,49 +1234,49 @@ public class AnalysisTransformer extends SceneTransformer{
         return null;
     }
 
-    void printAnalysisState(String label, SootMethod method, AllocationSiteContext context, State state){
-        System.out.println("\n========================================");
-        System.out.println("LABEL   : " + label);
-        System.out.println("METHOD  : " + method.getSignature());
-        System.out.println("CONTEXT : " + context);
-        System.out.println("========================================");
-
-        System.out.println("\n--- Stack (Points-To) ---");
-        if(state.stackMap.isEmpty()){
-            System.out.println("  (empty)");
-        }else{
-            for(var e : state.stackMap.entrySet()){
-                System.out.println("  " + e.getKey() + " -> " + e.getValue());
-            }
-        }
-
-        System.out.println("\n--- Heap ---");
-        if(state.heapMap.isEmpty()){
-            System.out.println("  (empty)");
-        }else{
-            for(var e : state.heapMap.entrySet()){
-                System.out.println("  " + e.getKey() + " -> " + e.getValue());
-            }
-        }
-
-        System.out.println("\n--- Static Fields ---");
-        if(state.staticMap.isEmpty()){
-            System.out.println("  (empty)");
-        }else{
-            for(var e : state.staticMap.entrySet()){
-                System.out.println("  " + e.getKey().getName() + " -> " + e.getValue());
-            }
-        }
-
-        System.out.println("\n--- Return Values ---");
-        if(state.returnValues.isEmpty()){
-            System.out.println("  (empty)");
-        }else{
-            System.out.println("  " + state.returnValues);
-        }
-
-        System.out.println("========================================\n");
-    }
+    // void printAnalysisState(String label, SootMethod method, AllocationSiteContext context, State state){
+    //     System.out.println("\n========================================");
+    //     System.out.println("LABEL   : " + label);
+    //     System.out.println("METHOD  : " + method.getSignature());
+    //     System.out.println("CONTEXT : " + context);
+    //     System.out.println("========================================");
+    //
+    //     System.out.println("\n--- Stack (Points-To) ---");
+    //     if(state.stackMap.isEmpty()){
+    //         System.out.println("  (empty)");
+    //     }else{
+    //         for(var e : state.stackMap.entrySet()){
+    //             System.out.println("  " + e.getKey() + " -> " + e.getValue());
+    //         }
+    //     }
+    //
+    //     System.out.println("\n--- Heap ---");
+    //     if(state.heapMap.isEmpty()){
+    //         System.out.println("  (empty)");
+    //     }else{
+    //         for(var e : state.heapMap.entrySet()){
+    //             System.out.println("  " + e.getKey() + " -> " + e.getValue());
+    //         }
+    //     }
+    //
+    //     System.out.println("\n--- Static Fields ---");
+    //     if(state.staticMap.isEmpty()){
+    //         System.out.println("  (empty)");
+    //     }else{
+    //         for(var e : state.staticMap.entrySet()){
+    //             System.out.println("  " + e.getKey().getName() + " -> " + e.getValue());
+    //         }
+    //     }
+    //
+    //     System.out.println("\n--- Return Values ---");
+    //     if(state.returnValues.isEmpty()){
+    //         System.out.println("  (empty)");
+    //     }else{
+    //         System.out.println("  " + state.returnValues);
+    //     }
+    //
+    //     System.out.println("========================================\n");
+    // }
 
     State applyLibrarySummary(Stmt stmt, InvokeExpr ie, State state){
 
@@ -1757,37 +1757,37 @@ public class AnalysisTransformer extends SceneTransformer{
         return state;
     }
 
-    void printFinalMainState(State state, SootMethod method, AllocationSiteContext context){
-        System.out.println("\n================ FINAL MAIN STATE ================");
-        System.out.println("METHOD  : " + method.getSignature());
-        System.out.println("CONTEXT : " + context);
-        System.out.println("=================================================\n");
-
-        System.out.println("--- Final Stack (Points-To) ---");
-        for(var e : state.stackMap.entrySet()){
-            if(!e.getKey().getName().startsWith("$")){
-                System.out.println("  " + e.getKey() + " -> " + e.getValue());
-            }
-        }
-
-        System.out.println("\n--- Final Heap ---");
-        if(state.heapMap.isEmpty()){
-            System.out.println("  (empty)");
-        }else{
-            for(var e : state.heapMap.entrySet()){
-                System.out.println("  " + e.getKey() + " -> " + e.getValue());
-            }
-        }
-
-        System.out.println("\n--- Final Static Fields ---");
-        if(state.staticMap.isEmpty()){
-            System.out.println("  (empty)");
-        }else{
-            for(var e : state.staticMap.entrySet()){
-                System.out.println("  " + e.getKey().getName() + " -> " + e.getValue());
-            }
-        }
-
-        System.out.println("=================================================\n");
-    }
+    // void printFinalMainState(State state, SootMethod method, AllocationSiteContext context){
+    //     System.out.println("\n================ FINAL MAIN STATE ================");
+    //     System.out.println("METHOD  : " + method.getSignature());
+    //     System.out.println("CONTEXT : " + context);
+    //     System.out.println("=================================================\n");
+    //
+    //     System.out.println("--- Final Stack (Points-To) ---");
+    //     for(var e : state.stackMap.entrySet()){
+    //         if(!e.getKey().getName().startsWith("$")){
+    //             System.out.println("  " + e.getKey() + " -> " + e.getValue());
+    //         }
+    //     }
+    //
+    //     System.out.println("\n--- Final Heap ---");
+    //     if(state.heapMap.isEmpty()){
+    //         System.out.println("  (empty)");
+    //     }else{
+    //         for(var e : state.heapMap.entrySet()){
+    //             System.out.println("  " + e.getKey() + " -> " + e.getValue());
+    //         }
+    //     }
+    //
+    //     System.out.println("\n--- Final Static Fields ---");
+    //     if(state.staticMap.isEmpty()){
+    //         System.out.println("  (empty)");
+    //     }else{
+    //         for(var e : state.staticMap.entrySet()){
+    //             System.out.println("  " + e.getKey().getName() + " -> " + e.getValue());
+    //         }
+    //     }
+    //
+    //     System.out.println("=================================================\n");
+    // }
 }

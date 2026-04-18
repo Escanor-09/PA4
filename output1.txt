@@ -1,0 +1,51 @@
+Soot started on Tue Apr 07 15:38:07 IST 2026
+
+================ FINAL MAIN STATE ================
+METHOD  : <Test: void main(java.lang.String[])>
+CONTEXT : []
+=================================================
+
+--- Final Stack (Points-To) ---
+
+--- Final Heap ---
+  Obj(Wrapper, L16, hc = [1123862502]).f -> [Obj(Factory, L16, hc = [1571278562])]
+  Obj(Wrapper, L17, hc = [26418585]).f -> [Obj(Factory, L17, hc = [2060799061])]
+
+--- Final Static Fields ---
+  (empty)
+=================================================
+
+
+=================Monomorphic Calls=================
+
+[Mono Call]
+Call Site : $r2 = virtualinvoke $r1.<Factory: A create()>()
+Line      : 9
+Context   : [26418585]
+Receiver  : [Obj(Factory, L17, hc = [2060799061])]
+Target    : <Factory: A create()>
+
+[Mono Call]
+Call Site : virtualinvoke $r2.<Wrapper: A make()>()
+Line      : 20
+Context   : []
+Receiver  : [Obj(Wrapper, L17, hc = [26418585])]
+Target    : <Wrapper: A make()>
+
+[Mono Call]
+Call Site : virtualinvoke $r0.<Wrapper: A make()>()
+Line      : 19
+Context   : []
+Receiver  : [Obj(Wrapper, L16, hc = [1123862502])]
+Target    : <Wrapper: A make()>
+
+[Mono Call]
+Call Site : $r2 = virtualinvoke $r1.<Factory: A create()>()
+Line      : 9
+Context   : [1123862502]
+Receiver  : [Obj(Factory, L16, hc = [1571278562])]
+Target    : <Factory: A create()>
+Total Mono Calls: 4
+================================
+Soot finished on Tue Apr 07 15:38:08 IST 2026
+Soot has run for 0 min. 1 sec.

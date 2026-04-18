@@ -1,0 +1,23 @@
+Soot started on Tue Apr 07 15:37:06 IST 2026
+
+================ FINAL MAIN STATE ================
+METHOD  : <Test: void main(java.lang.String[])>
+CONTEXT : []
+=================================================
+
+--- Final Stack (Points-To) ---
+  r3 -> [Obj(B, L11, hc = [2143700452])]
+
+--- Final Heap ---
+  Obj(A, L9, hc = [1441577726]).f -> [Obj(B, L11, hc = [2143700452])]
+
+--- Final Static Fields ---
+  (empty)
+=================================================
+
+
+=================Monomorphic Calls=================
+Total Mono Calls: 0
+================================
+Soot finished on Tue Apr 07 15:37:07 IST 2026
+Soot has run for 0 min. 1 sec.

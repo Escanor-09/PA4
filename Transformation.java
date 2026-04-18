@@ -66,20 +66,19 @@ public class Transformation extends BodyTransformer {
             // getInvokeExprBox() returns the ValueBox that holds the InvokeExpr inside
             // this statement (whether it's an InvokeStmt or the RHS of an AssignStmt).
             // setValue() replaces the old virtual/interface expr with the special one.
+            String before = stmt.toString();
             stmt.getInvokeExprBox().setValue(newExpr);
+            String after = stmt.toString();
 
             devirtualizedCount++;
-            System.out.println("[Devirtualized] " + body.getMethod().getSignature());
-            System.out.println("  Before : " + ie.getClass().getSimpleName()
-                    + " → " + ie.getMethod().getSignature());
-            System.out.println("  After  : SpecialInvokeExpr → " + target.getSignature());
+            System.out.println("[TRANSFORMATION] " + body.getMethod().getSignature());
+            System.out.println("  Before : " + before);
+            System.out.println("  After  : " + after);
         }
 
         if (devirtualizedCount > 0) {
-            System.out.println("[Transformation] " + body.getMethod().getSignature()
-                    + " — devirtualized " + devirtualizedCount + " call(s)");
-            // Validate the body after all patches are applied.
-            // This checks that all types, locals, and jumps are still consistent.
+            System.out.println("[TRANSFORMATION] " + body.getMethod().getSignature()
+                    + " — devirtualized " + devirtualizedCount + " call(s) total");
             body.validate();
         }
     }
